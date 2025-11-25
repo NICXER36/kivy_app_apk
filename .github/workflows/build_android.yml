@@ -1,50 +1,66 @@
-name: Build APK
+name: Build Kivy APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/.buildozer/android/platform/android-sdk
+      PATH: ${{ github.workspace }}/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.buildozer/android/platform/android-sdk/platform-tools:$PATH
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y python3-pip python3-setuptools python3-wheel
+      # ------------------------------
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y python3 python3-pip python3-venv \
+            build-essential git zip unzip wget zlib1g-dev \
+            libncurses5-dev libffi-dev libssl-dev libsqlite3-dev \
+            openjdk-17-jdk
 
-        # Instalar distutils correctamente
-        sudo apt install -y python3-distutils
+      - name: Upgrade pip and install setuptools/wheel
+        run: |
+          python3 -m pip install --upgrade pip setuptools wheel
 
-    - name: Install Buildozer
-      run: |
-        pip install --upgrade pip
-        pip install buildozer cython
+      - name: Install Buildozer and Cython
+        run: |
+          python3 -m pip install buildozer cython
 
-    - name: Install Android SDK + Build-tools
-      run: |
-        sudo apt install -y unzip
-        mkdir -p $HOME/.buildozer/android/platform
+      # ------------------------------
+      # Descargar y preparar Android SDK
+      - name: Download Android command line tools
+        run: |
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          cd $ANDROID_HOME/cmdline-tools
+          wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+          unzip tools.zip
+          mv cmdline-tools latest
 
-        # Descargar commandline-tools
-        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-        unzip cmdline-tools.zip -d $HOME/.buildozer/android/platform
-        mv $HOME/.buildozer/android/platform/cmdline-tools $HOME/.buildozer/android/platform/android-sdk
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
 
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export PATH=$ANDROID_HOME/cmdline-tools/bin:$ANDROID_HOME/platform-tools:$PATH
+      - name: Install Android SDK components (AIDL + Build-tools)
+        run: |
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-        yes | $ANDROID_HOME/cmdline-tools/bin/sdkmanager --licenses
+      # ------------------------------
+      # Construcción del APK
+      - name: Build APK
+        run: buildozer android debug
 
-        # Instalar AIDL + plataforma Android 34
-        yes | sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
-
-    - name: Build APK
-      run: |
-        buildozer android debug
+      # ------------------------------
+      # Subir APK como artifact
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kivy-apk
+          path: bin/*.apk
 
