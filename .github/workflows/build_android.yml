@@ -14,15 +14,21 @@ jobs:
       PATH: ${{ github.workspace }}/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin:${{ github.workspace }}/.buildozer/android/platform/android-sdk/platform-tools:$PATH
 
     steps:
+      # ------------------------------
+      - name: Install core utils (tar, unzip, wget)
+        run: |
+          sudo apt update
+          sudo apt install -y tar unzip wget coreutils
+
+      # ------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ------------------------------
       - name: Install system dependencies
         run: |
           sudo apt update
           sudo apt install -y python3 python3-pip python3-venv \
-            build-essential git zip unzip wget zlib1g-dev \
+            build-essential git zip zlib1g-dev \
             libncurses5-dev libffi-dev libssl-dev libsqlite3-dev \
             openjdk-17-jdk
 
@@ -34,8 +40,6 @@ jobs:
         run: |
           python3 -m pip install buildozer cython
 
-      # ------------------------------
-      # Descargar y preparar Android SDK
       - name: Download Android command line tools
         run: |
           mkdir -p $ANDROID_HOME/cmdline-tools
@@ -51,13 +55,9 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      # ------------------------------
-      # Construcción del APK
       - name: Build APK
         run: buildozer android debug
 
-      # ------------------------------
-      # Subir APK como artifact
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
