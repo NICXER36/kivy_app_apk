@@ -11,26 +11,51 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout repository
+
+    - name: Checkout repo
       uses: actions/checkout@v4
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt update
-        sudo apt install -y python3-pip python3-setuptools python3-wheel git zip openjdk-17-jdk
+        sudo apt install -y \
+          python3-pip python3-setuptools python3-wheel \
+          openjdk-17-jdk unzip git
+
         pip install --upgrade pip
         pip install buildozer cython
 
-    - name: Build APK
+    - name: Install Android SDK commandline tools
+      run: |
+        mkdir -p $HOME/android-sdk
+        cd $HOME/android-sdk
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+        unzip cmdline-tools.zip
+        mkdir -p cmdline-tools/latest
+        mv cmdline-tools/* cmdline-tools/latest/
+
+        echo "export ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "export PATH=\$PATH:$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_ENV
+        echo "export PATH=\$PATH:$HOME/android-sdk/platform-tools" >> $GITHUB_ENV
+        echo "export PATH=\$PATH:$HOME/android-sdk/build-tools" >> $GITHUB_ENV
+
+    - name: Install Android SDK components + accept licenses
+      run: |
+        yes | sdkmanager --licenses || true
+        yes | sdkmanager "build-tools;36.0.0" "platforms;android-34" "platform-tools"
+
+    - name: Build the APK
       run: |
         buildozer android debug
       env:
         JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+        ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
-    - name: Upload APK
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: android-apk
         path: bin/*.apk
         if-no-files-found: error
+
 
