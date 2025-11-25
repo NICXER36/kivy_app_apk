@@ -8,54 +8,62 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-
-    - name: Checkout repo
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Install system dependencies
+    - name: Install dependencies
       run: |
         sudo apt update
         sudo apt install -y \
-          python3-pip python3-setuptools python3-wheel \
-          openjdk-17-jdk unzip git
+          python3 python3-pip python3-setuptools python3-virtualenv \
+          build-essential git zip zlib1g-dev libncurses5 libffi-dev \
+          libssl-dev libsqlite3-dev openjdk-17-jdk unzip
 
-        pip install --upgrade pip
+    - name: Install Python tools
+      run: |
+        python3 -m pip install --upgrade pip
+        python3 -m pip install buildozer cython
+
+    - name: Create venv
+      run: |
+        python3 -m venv venv
+        source venv/bin/activate
         pip install buildozer cython
 
-    - name: Install Android SDK commandline tools
+    - name: Install Android SDK (Correct Way)
       run: |
-        mkdir -p $HOME/android-sdk
-        cd $HOME/android-sdk
-        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-        unzip cmdline-tools.zip
-        mkdir -p cmdline-tools/latest
-        mv cmdline-tools/* cmdline-tools/latest/
+        mkdir -p $HOME/android-sdk/cmdline-tools
+        cd $HOME/android-sdk/cmdline-tools
+        wget https://dl.google.com/android/repository/commandlinetools-linux-9123335_latest.zip
+        unzip commandlinetools-linux-9123335_latest.zip
+        mv cmdline-tools latest
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk
+        mv latest $HOME/.buildozer/android/platform/android-sdk/cmdline-tools
 
-        echo "export ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "export PATH=\$PATH:$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_ENV
-        echo "export PATH=\$PATH:$HOME/android-sdk/platform-tools" >> $GITHUB_ENV
-        echo "export PATH=\$PATH:$HOME/android-sdk/build-tools" >> $GITHUB_ENV
+        echo "export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk" >> $GITHUB_ENV
+        echo "export PATH=\$ANDROID_HOME/cmdline-tools/bin:\$PATH" >> $GITHUB_ENV
+        echo "export PATH=\$ANDROID_HOME/platform-tools:\$PATH" >> $GITHUB_ENV
 
-    - name: Install Android SDK components + accept licenses
+    - name: Accept licenses and install Android packages
       run: |
-        yes | sdkmanager --licenses || true
-        yes | sdkmanager "build-tools;36.0.0" "platforms;android-34" "platform-tools"
+        yes | $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/tools/bin/sdkmanager --licenses
+        $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/tools/bin/sdkmanager \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;33.0.2"
 
-    - name: Build the APK
+    - name: Build APK
       run: |
-        buildozer android debug
-      env:
-        JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
-        ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        source venv/bin/activate
+        buildozer -v android debug
 
-    - name: Upload APK Artifact
+    - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: android-apk
+        name: app-release
         path: bin/*.apk
-        if-no-files-found: error
 
 
